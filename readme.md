@@ -1,4 +1,9 @@
-### SSD
+## SSD
+
+
+### Paper
+
+[SSD: Single Shot MultiBox Detector](/paper/SSD%20-%20Single%20Shot%20MultiBox%20Detector.pdf)
 
 
 ### checkpoint
@@ -32,6 +37,7 @@ if __name__ == '__main__':
     runner.run(prop_id="demo/video1.mp4")
 ```
 
+
 ### Result
 
 | 图片 | 结果 |
@@ -43,3 +49,4 @@ if __name__ == '__main__':
 ### Reference
 
 * [balancap/SSD-Tensorflow](https://github.com/balancap/SSD-Tensorflow)
+
