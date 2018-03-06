@@ -40,7 +40,6 @@ _B_MEAN = 104.
 BBOX_CROP_OVERLAP = 0.5         # Minimum overlap to keep a bbox after cropping.
 MIN_OBJECT_COVERED = 0.25
 CROP_RATIO_RANGE = (0.6, 1.67)  # Distortion ratio during cropping.
-EVAL_SIZE = (300, 300)
 
 
 # 白化（whitened）：零均值的随机向量，且元素之间是无关联的。
@@ -289,7 +288,7 @@ def preprocess_for_train(image, labels, bboxes, out_shape, data_format='NHWC', s
 
 # 测试数据处理：
 # to float,sub mean,resize image,remove difficult,transpose data format
-def preprocess_for_eval(image, labels, bboxes, out_shape=EVAL_SIZE, data_format='NHWC',
+def preprocess_for_eval(image, labels, bboxes, out_shape, data_format='NHWC',
                         difficults=None, resize=Resize.WARP_RESIZE, scope='ssd_preprocessing_train'):
     """
     Preprocess an image for evaluation.

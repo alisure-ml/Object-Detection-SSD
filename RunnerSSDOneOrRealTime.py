@@ -4,20 +4,22 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from nets import ssd_vgg_300, np_methods
+from nets import ssd_vgg_300, ssd_vgg_512, np_methods
 from preprocessing import ssd_vgg_preprocessing
 
 
 class RunnerOneOrRealTime(object):
 
-    def __init__(self, ckpt_filename, data_format="NHWC"):
+    def __init__(self, ckpt_filename, net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300), data_format="NHWC"):
         self.ckpt_filename = ckpt_filename
         self.data_format = data_format
-        self.net_shape = (300, 300)
+        self.net_shape = net_shape
+        self.num_class = num_class
 
         self.img_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
+        self.ssd_net = net_model.SSDNet()
         self.image_4d, self.predictions, self.localisations, self.bbox_img, self.ssd_anchors = self.net(
-            self.img_input, self.net_shape, self.data_format)
+            self.ssd_net, self.img_input, self.net_shape, self.data_format)
 
         self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=False,
                                                      gpu_options=tf.GPUOptions(allow_growth=True)))
@@ -25,26 +27,22 @@ class RunnerOneOrRealTime(object):
         pass
 
     @staticmethod
-    def net(img_input, net_shape, data_format):
+    def net(ssd_net, img_input, net_shape, data_format):
         # 数据预处理
         image_pre, labels_pre, bboxes_pre, bbox_img = ssd_vgg_preprocessing.preprocess_for_eval(
             img_input, None, None, net_shape, data_format, resize=ssd_vgg_preprocessing.Resize.WARP_RESIZE)
         # 升维
         image_4d = tf.expand_dims(image_pre, 0)
 
-        reuse = True if 'ssd_net' in locals() else None
-
-        ssd_net = ssd_vgg_300.SSDNet()
-
         with slim.arg_scope(ssd_net.arg_scope(data_format=data_format)):
-            predictions, localisations, _, _ = ssd_net.net(image_4d, is_training=False, reuse=reuse)
+            predictions, localisations, _, _ = ssd_net.net(image_4d, is_training=False, reuse=False)
 
         # 得到默认的bounding boxes
         ssd_anchors = ssd_net.anchors(net_shape)
 
         return image_4d, predictions, localisations, bbox_img, ssd_anchors
 
-    def run_net(self, img, select_threshold=0.5, nms_threshold=0.45):
+    def run_net(self, img, select_threshold=0.5, nms_threshold=0.45, bboxes_sort_top_k=400):
         # Run SSD network.
         r_img, r_predictions, r_localisations, r_bbox_img = self.sess.run(
             [self.image_4d, self.predictions, self.localisations, self.bbox_img], feed_dict={self.img_input: img})
@@ -52,12 +50,12 @@ class RunnerOneOrRealTime(object):
         # 将符合条件（非背景得分大于select_threshold）框的类别、得分和边界框筛选出
         r_classes, r_scores, r_bboxes = np_methods.ssd_bboxes_select(
             r_predictions, r_localisations, self.ssd_anchors, select_threshold=select_threshold,
-            img_shape=self.net_shape, num_classes=21, decode=True)
+            img_shape=self.net_shape, num_classes=self.num_class, decode=True)
 
         # 使bboxes的范围在bbox_ref内
         r_bboxes = np_methods.bboxes_clip(r_bbox_img, r_bboxes)
         # 根据得分排序，选择top_k
-        r_classes, r_scores, r_bboxes = np_methods.bboxes_sort(r_classes, r_scores, r_bboxes, top_k=400)
+        r_classes, r_scores, r_bboxes = np_methods.bboxes_sort(r_classes, r_scores, r_bboxes, top_k=bboxes_sort_top_k)
         # 非极大值抑制(non maximum suppression)
         r_classes, r_scores, r_bboxes = np_methods.bboxes_nms(r_classes, r_scores, r_bboxes, nms_threshold)
         # Resize bboxes to original image shape.
@@ -164,11 +162,29 @@ class RunnerOneOrRealTime(object):
     pass
 
 
-if __name__ == '__main__':
-    runner = RunnerOneOrRealTime(ckpt_filename='checkpoints/ssd_300_vgg.ckpt')
+def demo_300():
+    runner = RunnerOneOrRealTime(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt',
+                                 net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300))
     # one image
     runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result.png")
     # camera
     # runner.run(prop_id=0, size=(960, 840))
     # video
     # runner.run(prop_id="demo/video1.mp4")
+    pass
+
+
+def demo_512():
+    runner = RunnerOneOrRealTime(ckpt_filename='checkpoints/VGG_VOC0712Plus_SSD_512x512.ckpt',
+                                 net_model=ssd_vgg_512, num_class=21, net_shape=(512, 512))
+    # one image
+    runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result.png")
+    # camera
+    # runner.run(prop_id=0, size=(960, 840))
+    # video
+    # runner.run(prop_id="demo/video1.mp4")
+    pass
+
+if __name__ == '__main__':
+    demo_512()
+    pass
