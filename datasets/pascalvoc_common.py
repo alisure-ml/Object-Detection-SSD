@@ -15,11 +15,10 @@
 """Provides data for the Pascal VOC Dataset (images + annotations).
 """
 import os
-
 import tensorflow as tf
 from datasets import dataset_utils
+import tensorflow.contrib.slim as slim
 
-slim = tf.contrib.slim
 
 VOC_LABELS = {
     'none': (0, 'Background'),
@@ -46,8 +45,7 @@ VOC_LABELS = {
 }
 
 
-def get_split(split_name, dataset_dir, file_pattern, reader,
-              split_to_sizes, items_to_descriptions, num_classes):
+def get_split(split_name, dataset_dir, file_pattern, reader, split_to_sizes, items_to_descriptions, num_classes):
     """Gets a dataset tuple with instructions for reading Pascal VOC dataset.
 
     Args:
@@ -69,8 +67,8 @@ def get_split(split_name, dataset_dir, file_pattern, reader,
     file_pattern = os.path.join(dataset_dir, file_pattern % split_name)
 
     # Allowing None in the signature so that dataset_factory can use the default.
-    if reader is None:
-        reader = tf.TFRecordReader
+    reader = tf.TFRecordReader if reader is None else reader
+
     # Features in Pascal VOC TFRecords.
     keys_to_features = {
         'image/encoded': tf.FixedLenFeature((), tf.string, default_value=''),
@@ -90,27 +88,18 @@ def get_split(split_name, dataset_dir, file_pattern, reader,
     items_to_handlers = {
         'image': slim.tfexample_decoder.Image('image/encoded', 'image/format'),
         'shape': slim.tfexample_decoder.Tensor('image/shape'),
-        'object/bbox': slim.tfexample_decoder.BoundingBox(
-                ['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
+        'object/bbox': slim.tfexample_decoder.BoundingBox(['ymin', 'xmin', 'ymax', 'xmax'], 'image/object/bbox/'),
         'object/label': slim.tfexample_decoder.Tensor('image/object/bbox/label'),
         'object/difficult': slim.tfexample_decoder.Tensor('image/object/bbox/difficult'),
         'object/truncated': slim.tfexample_decoder.Tensor('image/object/bbox/truncated'),
     }
-    decoder = slim.tfexample_decoder.TFExampleDecoder(
-        keys_to_features, items_to_handlers)
+
+    decoder = slim.tfexample_decoder.TFExampleDecoder(keys_to_features, items_to_handlers)
 
     labels_to_names = None
     if dataset_utils.has_labels(dataset_dir):
         labels_to_names = dataset_utils.read_label_file(dataset_dir)
-    # else:
-    #     labels_to_names = create_readable_names_for_imagenet_labels()
-    #     dataset_utils.write_label_file(labels_to_names, dataset_dir)
 
-    return slim.dataset.Dataset(
-            data_sources=file_pattern,
-            reader=reader,
-            decoder=decoder,
-            num_samples=split_to_sizes[split_name],
-            items_to_descriptions=items_to_descriptions,
-            num_classes=num_classes,
-            labels_to_names=labels_to_names)
+    return slim.dataset.Dataset(data_sources=file_pattern, reader=reader, decoder=decoder,
+                                num_samples=split_to_sizes[split_name], items_to_descriptions=items_to_descriptions,
+                                num_classes=num_classes, labels_to_names=labels_to_names)

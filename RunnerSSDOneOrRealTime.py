@@ -8,21 +8,23 @@ from nets import ssd_vgg_300, ssd_vgg_512, np_methods
 from preprocessing import ssd_vgg_preprocessing
 
 
+"""
+没有框编码和框解码、没有优化
+"""
 class RunnerOneOrRealTime(object):
 
-    def __init__(self, ckpt_filename, net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300), data_format="NHWC"):
+    def __init__(self, ckpt_filename, net_model=ssd_vgg_300, num_class=23, net_shape=(300, 300), data_format="NHWC"):
         self.ckpt_filename = ckpt_filename
         self.data_format = data_format
         self.net_shape = net_shape
         self.num_class = num_class
 
+        self.ssd_net = net_model.SSDNet(net_model.SSDNet.default_params._replace(num_classes=num_class))
         self.img_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
-        self.ssd_net = net_model.SSDNet()
         self.image_4d, self.predictions, self.localisations, self.bbox_img, self.ssd_anchors = self.net(
             self.ssd_net, self.img_input, self.net_shape, self.data_format)
 
-        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=False,
-                                                     gpu_options=tf.GPUOptions(allow_growth=True)))
+        self.sess = tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True)))
         self.saver = tf.train.Saver()
         pass
 
@@ -166,7 +168,7 @@ def demo_300():
     runner = RunnerOneOrRealTime(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt',
                                  net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300))
     # one image
-    runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result.png")
+    runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result2.png")
     # camera
     # runner.run(prop_id=0, size=(960, 840))
     # video
@@ -186,5 +188,5 @@ def demo_512():
     pass
 
 if __name__ == '__main__':
-    demo_512()
+    demo_300()
     pass

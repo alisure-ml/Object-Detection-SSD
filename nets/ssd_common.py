@@ -1,20 +1,3 @@
-# Copyright 2015 Paul Balanca. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""Shared function between different SSD implementations.
-"""
-import numpy as np
 import tensorflow as tf
 import tf_extend as tfe
 
@@ -22,14 +5,8 @@ import tf_extend as tfe
 # =========================================================================== #
 # TensorFlow implementation of boxes SSD encoding / decoding.
 # =========================================================================== #
-def tf_ssd_bboxes_encode_layer(labels,
-                               bboxes,
-                               anchors_layer,
-                               num_classes,
-                               no_annotation_label,
-                               ignore_threshold=0.5,
-                               prior_scaling=[0.1, 0.1, 0.2, 0.2],
-                               dtype=tf.float32):
+def tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer, num_classes, no_annotation_label,
+                               ignore_threshold=0.5, prior_scaling=list([0.1, 0.1, 0.2, 0.2]), dtype=tf.float32):
     """Encode groundtruth labels and bounding boxes using SSD anchors from
     one layer.
 
@@ -48,57 +25,54 @@ def tf_ssd_bboxes_encode_layer(labels,
     ymin = yref - href / 2.
     xmin = xref - wref / 2.
     ymax = yref + href / 2.
-    xmax = xref + wref / 2.
-    vol_anchors = (xmax - xmin) * (ymax - ymin)
+    xmax = xref + wref / 2.  # 得到默认框的四个坐标，每个点都有len(href)个默认框
+    vol_anchors = (xmax - xmin) * (ymax - ymin)  # 默认框的面积
 
     # Initialize tensors...
     shape = (yref.shape[0], yref.shape[1], href.size)
-    feat_labels = tf.zeros(shape, dtype=tf.int64)
-    feat_scores = tf.zeros(shape, dtype=dtype)
-
-    feat_ymin = tf.zeros(shape, dtype=dtype)
+    feat_labels = tf.zeros(shape, dtype=tf.int64)  # 适合的标签
+    feat_scores = tf.zeros(shape, dtype=dtype)  # 适合的得分
+    feat_ymin = tf.zeros(shape, dtype=dtype)  # 适合的坐标
     feat_xmin = tf.zeros(shape, dtype=dtype)
     feat_ymax = tf.ones(shape, dtype=dtype)
     feat_xmax = tf.ones(shape, dtype=dtype)
 
+    # 计算bbox（真实框）与所有默认框的：交/并
     def jaccard_with_anchors(bbox):
         """Compute jaccard score between a box and the anchors.
         """
-        int_ymin = tf.maximum(ymin, bbox[0])
+        int_ymin = tf.maximum(ymin, bbox[0])  # 重合的坐标（交的坐标）
         int_xmin = tf.maximum(xmin, bbox[1])
         int_ymax = tf.minimum(ymax, bbox[2])
         int_xmax = tf.minimum(xmax, bbox[3])
-        h = tf.maximum(int_ymax - int_ymin, 0.)
-        w = tf.maximum(int_xmax - int_xmin, 0.)
         # Volumes.
+        h = tf.maximum(int_ymax - int_ymin, 0.)  # 计算交的面积
+        w = tf.maximum(int_xmax - int_xmin, 0.)
         inter_vol = h * w
-        union_vol = vol_anchors - inter_vol \
-            + (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
+        union_vol = vol_anchors - inter_vol + (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])  # 计算并的面积
         jaccard = tf.div(inter_vol, union_vol)
-        return jaccard
+        return jaccard  # 交/并
 
+    # 计算得分score：（bbox（真实框）与所有默认框的）交的面积 / 默认框的面积
     def intersection_with_anchors(bbox):
         """Compute intersection between score a box and the anchors.
         """
-        int_ymin = tf.maximum(ymin, bbox[0])
+        int_ymin = tf.maximum(ymin, bbox[0])  # 重合的坐标（交的坐标）
         int_xmin = tf.maximum(xmin, bbox[1])
         int_ymax = tf.minimum(ymax, bbox[2])
         int_xmax = tf.minimum(xmax, bbox[3])
-        h = tf.maximum(int_ymax - int_ymin, 0.)
+        h = tf.maximum(int_ymax - int_ymin, 0.)  # 计算交的面积
         w = tf.maximum(int_xmax - int_xmin, 0.)
-        inter_vol = h * w
-        scores = tf.div(inter_vol, vol_anchors)
+        scores = tf.div(h * w, vol_anchors)
         return scores
 
-    def condition(i, feat_labels, feat_scores,
-                  feat_ymin, feat_xmin, feat_ymax, feat_xmax):
-        """Condition: check label index.
-        """
+    # 对每一个框进行判断
+    def condition(i, feat_labels, feat_scores, feat_ymin, feat_xmin, feat_ymax, feat_xmax):
+        """Condition: check label index. """
         r = tf.less(i, tf.shape(labels))
         return r[0]
 
-    def body(i, feat_labels, feat_scores,
-             feat_ymin, feat_xmin, feat_ymax, feat_xmax):
+    def body(i, feat_labels, feat_scores, feat_ymin, feat_xmin, feat_ymax, feat_xmax):
         """Body: update feature labels, scores and bboxes.
         Follow the original SSD paper for that purpose:
           - assign values when jaccard > 0.5;
@@ -108,45 +82,43 @@ def tf_ssd_bboxes_encode_layer(labels,
         label = labels[i]
         bbox = bboxes[i]
         jaccard = jaccard_with_anchors(bbox)
+
         # Mask: check threshold + scores + no annotations + num_classes.
+        # 条件：jaccard（交/并）>feat_scores（当前得分），且feat_scores>-0.5，且label<类别数
         mask = tf.greater(jaccard, feat_scores)
-        # mask = tf.logical_and(mask, tf.greater(jaccard, matching_threshold))
-        mask = tf.logical_and(mask, feat_scores > -0.5)
+        mask = tf.logical_and(mask, feat_scores > -0.5)  # 这里存疑，为什么是-0.5？，论文中说的是0.5
         mask = tf.logical_and(mask, label < num_classes)
-        imask = tf.cast(mask, tf.int64)
-        fmask = tf.cast(mask, dtype)
+
         # Update values using mask.
-        feat_labels = imask * label + (1 - imask) * feat_labels
+        # 对于满足上述条件的默认框的得分设为jaccard（交/并），否则，得分设为之前的feat_scores（初始为0）。
         feat_scores = tf.where(mask, jaccard, feat_scores)
 
+        # 对于满足上述条件的默认框的标签设为label，否则，标签设为之前的feat_labels（初始为0）。
+        imask = tf.cast(mask, tf.int64)
+        feat_labels = imask * label + (1 - imask) * feat_labels
+
+        # 对于满足上述条件的默认框的feat_坐标设为`真实框的坐标`，否则，feat_坐标设为之前的feat_坐标（初始为整张图）。
+        # 将坐标设为`真实框的坐标`这里可能是关键点，即要么坐标是真实的坐标，要么是整个图片
+        fmask = tf.cast(mask, dtype)
         feat_ymin = fmask * bbox[0] + (1 - fmask) * feat_ymin
         feat_xmin = fmask * bbox[1] + (1 - fmask) * feat_xmin
         feat_ymax = fmask * bbox[2] + (1 - fmask) * feat_ymax
         feat_xmax = fmask * bbox[3] + (1 - fmask) * feat_xmax
 
-        # Check no annotation label: ignore these anchors...
-        # interscts = intersection_with_anchors(bbox)
-        # mask = tf.logical_and(interscts > ignore_threshold,
-        #                       label == no_annotation_label)
-        # # Replace scores by -1.
-        # feat_scores = tf.where(mask, -tf.cast(mask, dtype), feat_scores)
-
-        return [i+1, feat_labels, feat_scores,
-                feat_ymin, feat_xmin, feat_ymax, feat_xmax]
+        return [i+1, feat_labels, feat_scores, feat_ymin, feat_xmin, feat_ymax, feat_xmax]
     # Main loop definition.
     i = 0
-    [i, feat_labels, feat_scores,
-     feat_ymin, feat_xmin,
-     feat_ymax, feat_xmax] = tf.while_loop(condition, body,
-                                           [i, feat_labels, feat_scores,
-                                            feat_ymin, feat_xmin,
-                                            feat_ymax, feat_xmax])
+    [i, feat_labels, feat_scores, feat_ymin, feat_xmin, feat_ymax, feat_xmax] = tf.while_loop(
+        condition, body, [i, feat_labels, feat_scores, feat_ymin, feat_xmin, feat_ymax, feat_xmax])
+
     # Transform to center / size.
-    feat_cy = (feat_ymax + feat_ymin) / 2.
+    feat_cy = (feat_ymax + feat_ymin) / 2.  # 要么是真实框的中心，要么是图片的中心
     feat_cx = (feat_xmax + feat_xmin) / 2.
-    feat_h = feat_ymax - feat_ymin
+    feat_h = feat_ymax - feat_ymin  # 要么是真实框的宽高，要么是图片的宽高
     feat_w = feat_xmax - feat_xmin
+
     # Encode features.
+    # 和loss有关：
     feat_cy = (feat_cy - yref) / href / prior_scaling[0]
     feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
     feat_h = tf.log(feat_h / href) / prior_scaling[2]
@@ -156,15 +128,8 @@ def tf_ssd_bboxes_encode_layer(labels,
     return feat_labels, feat_localizations, feat_scores
 
 
-def tf_ssd_bboxes_encode(labels,
-                         bboxes,
-                         anchors,
-                         num_classes,
-                         no_annotation_label,
-                         ignore_threshold=0.5,
-                         prior_scaling=[0.1, 0.1, 0.2, 0.2],
-                         dtype=tf.float32,
-                         scope='ssd_bboxes_encode'):
+def tf_ssd_bboxes_encode(labels, bboxes, anchors, num_classes, no_annotation_label, ignore_threshold=0.5,
+                         prior_scaling=list([0.1, 0.1, 0.2, 0.2]), dtype=tf.float32, scope='ssd_bboxes_encode'):
     """Encode groundtruth labels and bounding boxes using SSD net anchors.
     Encoding boxes for all feature layers.
 
@@ -185,20 +150,20 @@ def tf_ssd_bboxes_encode(labels,
         target_scores = []
         for i, anchors_layer in enumerate(anchors):
             with tf.name_scope('bboxes_encode_block_%i' % i):
-                t_labels, t_loc, t_scores = \
-                    tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer,
-                                               num_classes, no_annotation_label,
-                                               ignore_threshold,
-                                               prior_scaling, dtype)
+                t_labels, t_loc, t_scores = tf_ssd_bboxes_encode_layer(labels, bboxes, anchors_layer, num_classes,
+                                                                       no_annotation_label, ignore_threshold,
+                                                                       prior_scaling, dtype)
                 target_labels.append(t_labels)
                 target_localizations.append(t_loc)
                 target_scores.append(t_scores)
+                pass
         return target_labels, target_localizations, target_scores
 
+    pass
 
-def tf_ssd_bboxes_decode_layer(feat_localizations,
-                               anchors_layer,
-                               prior_scaling=[0.1, 0.1, 0.2, 0.2]):
+
+# 结合tf_ssd_bboxes_decode_layer，要么是预测的框，要么是整张图片
+def tf_ssd_bboxes_decode_layer(feat_localizations, anchors_layer, prior_scaling=list([0.1, 0.1, 0.2, 0.2])):
     """Compute the relative bounding boxes from the layer features and
     reference anchor bounding boxes.
 
@@ -221,14 +186,11 @@ def tf_ssd_bboxes_decode_layer(feat_localizations,
     xmin = cx - w / 2.
     ymax = cy + h / 2.
     xmax = cx + w / 2.
-    bboxes = tf.stack([ymin, xmin, ymax, xmax], axis=-1)
-    return bboxes
+    return tf.stack([ymin, xmin, ymax, xmax], axis=-1)
 
 
-def tf_ssd_bboxes_decode(feat_localizations,
-                         anchors,
-                         prior_scaling=[0.1, 0.1, 0.2, 0.2],
-                         scope='ssd_bboxes_decode'):
+def tf_ssd_bboxes_decode(feat_localizations, anchors,
+                         prior_scaling=list([0.1, 0.1, 0.2, 0.2]), scope='ssd_bboxes_decode'):
     """Compute the relative bounding boxes from the SSD net features and
     reference anchors bounding boxes.
 
@@ -242,24 +204,18 @@ def tf_ssd_bboxes_decode(feat_localizations,
     with tf.name_scope(scope):
         bboxes = []
         for i, anchors_layer in enumerate(anchors):
-            bboxes.append(
-                tf_ssd_bboxes_decode_layer(feat_localizations[i],
-                                           anchors_layer,
-                                           prior_scaling))
+            bboxes.append(tf_ssd_bboxes_decode_layer(feat_localizations[i], anchors_layer, prior_scaling))
         return bboxes
+    pass
 
 
 # =========================================================================== #
 # SSD boxes selection.
 # =========================================================================== #
-def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
-                               select_threshold=None,
-                               num_classes=21,
-                               ignore_class=0,
-                               scope=None):
+def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer, select_threshold=None,
+                               num_classes=21, ignore_class=0, scope=None):
     """Extract classes, scores and bounding boxes from features in one layer.
     Batch-compatible: inputs are supposed to have batch-type shapes.
-
     Args:
       predictions_layer: A SSD prediction layer;
       localizations_layer: A SSD localization layer;
@@ -270,15 +226,12 @@ def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
         size Batches X N x 1 | 4. Each key corresponding to a class.
     """
     select_threshold = 0.0 if select_threshold is None else select_threshold
-    with tf.name_scope(scope, 'ssd_bboxes_select_layer',
-                       [predictions_layer, localizations_layer]):
+    with tf.name_scope(scope, 'ssd_bboxes_select_layer', [predictions_layer, localizations_layer]):
         # Reshape features: Batches x N x N_labels | 4
         p_shape = tfe.get_shape(predictions_layer)
-        predictions_layer = tf.reshape(predictions_layer,
-                                       tf.stack([p_shape[0], -1, p_shape[-1]]))
+        predictions_layer = tf.reshape(predictions_layer, tf.stack([p_shape[0], -1, p_shape[-1]]))
         l_shape = tfe.get_shape(localizations_layer)
-        localizations_layer = tf.reshape(localizations_layer,
-                                         tf.stack([l_shape[0], -1, l_shape[-1]]))
+        localizations_layer = tf.reshape(localizations_layer, tf.stack([l_shape[0], -1, l_shape[-1]]))
 
         d_scores = {}
         d_bboxes = {}
@@ -293,14 +246,14 @@ def tf_ssd_bboxes_select_layer(predictions_layer, localizations_layer,
                 d_scores[c] = scores
                 d_bboxes[c] = bboxes
 
+                pass
+            pass
         return d_scores, d_bboxes
+    pass
 
 
-def tf_ssd_bboxes_select(predictions_net, localizations_net,
-                         select_threshold=None,
-                         num_classes=21,
-                         ignore_class=0,
-                         scope=None):
+def tf_ssd_bboxes_select(predictions_net, localizations_net, select_threshold=None,
+                         num_classes=21, ignore_class=0, scope=None):
     """Extract classes, scores and bounding boxes from network output layers.
     Batch-compatible: inputs are supposed to have batch-type shapes.
 
@@ -313,16 +266,12 @@ def tf_ssd_bboxes_select(predictions_net, localizations_net,
       d_scores, d_bboxes: Dictionary of scores and bboxes Tensors of
         size Batches X N x 1 | 4. Each key corresponding to a class.
     """
-    with tf.name_scope(scope, 'ssd_bboxes_select',
-                       [predictions_net, localizations_net]):
+    with tf.name_scope(scope, 'ssd_bboxes_select', [predictions_net, localizations_net]):
         l_scores = []
         l_bboxes = []
         for i in range(len(predictions_net)):
-            scores, bboxes = tf_ssd_bboxes_select_layer(predictions_net[i],
-                                                        localizations_net[i],
-                                                        select_threshold,
-                                                        num_classes,
-                                                        ignore_class)
+            scores, bboxes = tf_ssd_bboxes_select_layer(predictions_net[i], localizations_net[i],
+                                                        select_threshold, num_classes, ignore_class)
             l_scores.append(scores)
             l_bboxes.append(bboxes)
         # Concat results.
@@ -334,10 +283,10 @@ def tf_ssd_bboxes_select(predictions_net, localizations_net,
             d_scores[c] = tf.concat(ls, axis=1)
             d_bboxes[c] = tf.concat(lb, axis=1)
         return d_scores, d_bboxes
+    pass
 
 
-def tf_ssd_bboxes_select_layer_all_classes(predictions_layer, localizations_layer,
-                                           select_threshold=None):
+def tf_ssd_bboxes_select_layer_all_classes(predictions_layer, localizations_layer, select_threshold=None):
     """Extract classes, scores and bounding boxes from features in one layer.
      Batch-compatible: inputs are supposed to have batch-type shapes.
 
@@ -351,11 +300,9 @@ def tf_ssd_bboxes_select_layer_all_classes(predictions_layer, localizations_laye
      """
     # Reshape features: Batches x N x N_labels | 4
     p_shape = tfe.get_shape(predictions_layer)
-    predictions_layer = tf.reshape(predictions_layer,
-                                   tf.stack([p_shape[0], -1, p_shape[-1]]))
+    predictions_layer = tf.reshape(predictions_layer, tf.stack([p_shape[0], -1, p_shape[-1]]))
     l_shape = tfe.get_shape(localizations_layer)
-    localizations_layer = tf.reshape(localizations_layer,
-                                     tf.stack([l_shape[0], -1, l_shape[-1]]))
+    localizations_layer = tf.reshape(localizations_layer, tf.stack([l_shape[0], -1, l_shape[-1]]))
     # Boxes selection: use threshold or score > no-label criteria.
     if select_threshold is None or select_threshold == 0:
         # Class prediction and scores: assign 0. to 0-class
@@ -375,9 +322,7 @@ def tf_ssd_bboxes_select_layer_all_classes(predictions_layer, localizations_laye
     return classes, scores, bboxes
 
 
-def tf_ssd_bboxes_select_all_classes(predictions_net, localizations_net,
-                                     select_threshold=None,
-                                     scope=None):
+def tf_ssd_bboxes_select_all_classes(predictions_net, localizations_net, select_threshold=None, scope=None):
     """Extract classes, scores and bounding boxes from network output layers.
     Batch-compatible: inputs are supposed to have batch-type shapes.
 
@@ -389,22 +334,20 @@ def tf_ssd_bboxes_select_all_classes(predictions_net, localizations_net,
     Return:
       classes, scores, bboxes: Tensors.
     """
-    with tf.name_scope(scope, 'ssd_bboxes_select',
-                       [predictions_net, localizations_net]):
+    with tf.name_scope(scope, 'ssd_bboxes_select', [predictions_net, localizations_net]):
         l_classes = []
         l_scores = []
         l_bboxes = []
         for i in range(len(predictions_net)):
-            classes, scores, bboxes = \
-                tf_ssd_bboxes_select_layer_all_classes(predictions_net[i],
-                                                       localizations_net[i],
-                                                       select_threshold)
+            classes, scores, bboxes = tf_ssd_bboxes_select_layer_all_classes(predictions_net[i],
+                                                                             localizations_net[i], select_threshold)
             l_classes.append(classes)
             l_scores.append(scores)
             l_bboxes.append(bboxes)
+            pass
 
         classes = tf.concat(l_classes, axis=1)
         scores = tf.concat(l_scores, axis=1)
         bboxes = tf.concat(l_bboxes, axis=1)
         return classes, scores, bboxes
-
+    pass

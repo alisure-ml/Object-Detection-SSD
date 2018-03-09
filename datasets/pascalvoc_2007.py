@@ -73,14 +73,9 @@ TEST_STATISTICS = {
     'tvmonitor': (1, 1),
     'total': (20, 20),
 }
-SPLITS_TO_SIZES = {
-    'train': 5011,
-    'test': 4952,
-}
-SPLITS_TO_STATISTICS = {
-    'train': TRAIN_STATISTICS,
-    'test': TEST_STATISTICS,
-}
+
+SPLITS_TO_SIZES = {'train': 5011, 'test': 4952,}
+SPLITS_TO_STATISTICS = {'train': TRAIN_STATISTICS, 'test': TEST_STATISTICS,}
 NUM_CLASSES = 20
 
 
@@ -103,5 +98,5 @@ def get_split(split_name, dataset_dir, file_pattern=None, reader=None):
     """
     if not file_pattern:
         file_pattern = FILE_PATTERN
-    return pascalvoc_common.get_split(split_name, dataset_dir, file_pattern, reader,
-                                      SPLITS_TO_SIZES, ITEMS_TO_DESCRIPTIONS, NUM_CLASSES)
+    return pascalvoc_common.get_split(split_name, dataset_dir, file_pattern, reader, SPLITS_TO_SIZES,
+                                      ITEMS_TO_DESCRIPTIONS, NUM_CLASSES)

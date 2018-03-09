@@ -105,6 +105,21 @@ if __name__ == '__main__':
 ```
 
 
+### Eval
+
+1. After run `Train Data`, set data path in `RunnerEval.__init__(dataset_dir="", dataset_split_name="test")`
+
+2. After run `Checkpoint` or have Checkpoints, set `ckpt_path` in `RunnerEval.__init__(ckpt_path="")`
+
+3. Just run below.
+
+```python
+from RunnerSSDEval import RunnerEval
+if __name__ == '__main__':
+    runner = RunnerEval()
+    runner.eval_demo()
+```
+
 
 
 ### Reference

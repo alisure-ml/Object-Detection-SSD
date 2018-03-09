@@ -175,8 +175,7 @@ def bboxes_nms(scores, bboxes, nms_threshold=0.5, keep_top_k=200, scope=None):
     """
     with tf.name_scope(scope, 'bboxes_nms_single', [scores, bboxes]):
         # Apply NMS algorithm.
-        idxes = tf.image.non_max_suppression(bboxes, scores,
-                                             keep_top_k, nms_threshold)
+        idxes = tf.image.non_max_suppression(bboxes, scores, keep_top_k, nms_threshold)
         scores = tf.gather(scores, idxes)
         bboxes = tf.gather(bboxes, idxes)
         # Pad results.
@@ -206,23 +205,16 @@ def bboxes_nms_batch(scores, bboxes, nms_threshold=0.5, keep_top_k=200, scope=No
             d_scores = {}
             d_bboxes = {}
             for c in scores.keys():
-                s, b = bboxes_nms_batch(scores[c], bboxes[c],
-                                        nms_threshold=nms_threshold,
-                                        keep_top_k=keep_top_k)
+                s, b = bboxes_nms_batch(scores[c], bboxes[c], nms_threshold=nms_threshold, keep_top_k=keep_top_k)
                 d_scores[c] = s
                 d_bboxes[c] = b
             return d_scores, d_bboxes
 
     # Tensors inputs.
     with tf.name_scope(scope, 'bboxes_nms_batch'):
-        r = tf.map_fn(lambda x: bboxes_nms(x[0], x[1],
-                                           nms_threshold, keep_top_k),
-                      (scores, bboxes),
-                      dtype=(scores.dtype, bboxes.dtype),
-                      parallel_iterations=10,
-                      back_prop=False,
-                      swap_memory=False,
-                      infer_shape=True)
+        r = tf.map_fn(lambda x: bboxes_nms(x[0], x[1], nms_threshold, keep_top_k), (scores, bboxes),
+                      dtype=(scores.dtype, bboxes.dtype), parallel_iterations=10,
+                      back_prop=False, swap_memory=False, infer_shape=True)
         scores, bboxes = r
         return scores, bboxes
 
@@ -338,26 +330,20 @@ def bboxes_matching_batch(labels, scores, bboxes, glabels, gbboxes, gdifficults,
             d_tp = {}
             d_fp = {}
             for c in labels:
-                n, tp, fp, _ = bboxes_matching_batch(c, scores[c], bboxes[c],
-                                                     glabels, gbboxes, gdifficults,
-                                                     matching_threshold)
+                n, tp, fp, _ = bboxes_matching_batch(
+                    c, scores[c], bboxes[c], glabels, gbboxes, gdifficults, matching_threshold)
                 d_n_gbboxes[c] = n
                 d_tp[c] = tp
                 d_fp[c] = fp
             return d_n_gbboxes, d_tp, d_fp, scores
 
-    with tf.name_scope(scope, 'bboxes_matching_batch',
-                       [scores, bboxes, glabels, gbboxes]):
-        r = tf.map_fn(lambda x: bboxes_matching(labels, x[0], x[1],
-                                                x[2], x[3], x[4],
-                                                matching_threshold),
-                      (scores, bboxes, glabels, gbboxes, gdifficults),
-                      dtype=(tf.int64, tf.bool, tf.bool),
-                      parallel_iterations=10,
-                      back_prop=False,
-                      swap_memory=True,
-                      infer_shape=True)
+    with tf.name_scope(scope, 'bboxes_matching_batch', [scores, bboxes, glabels, gbboxes]):
+        r = tf.map_fn(lambda x: bboxes_matching(labels, x[0], x[1], x[2], x[3], x[4], matching_threshold),
+                      (scores, bboxes, glabels, gbboxes, gdifficults), dtype=(tf.int64, tf.bool, tf.bool),
+                      parallel_iterations=10, back_prop=False, swap_memory=True, infer_shape=True)
         return r[0], r[1], r[2], scores
+
+    pass
 
 
 # =========================================================================== #
