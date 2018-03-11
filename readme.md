@@ -123,7 +123,7 @@ if __name__ == '__main__':
 
 ### Train
 
-* 
+* Just set you argument in class `RunnerTrain` and run `RunnerSSDTrain.py`.
 
 
 > 一直出現损失为nan的情况，经过一天....的找原因发现是优化求解出现了问题
