@@ -9,7 +9,7 @@ from preprocessing import ssd_vgg_preprocessing
 
 class RunnerTrain(object):
 
-    def __init__(self, dataset_split_name="train", dataset_dir="./data/train", num_class=21, batch_size=4,
+    def __init__(self, dataset_split_name="train", dataset_dir="./data/train", num_class=21, batch_size=32,
                  img_shape=(300, 300), net_model=ssd_vgg_300, data_format='NHWC', dataset_name=pascalvoc_2007,
                  ckpt_path='./models/ssd_vgg_300', ckpt_name="ssd_300_vgg.ckpt",
                  learning_rate=0.01, end_learning_rate=0.0001,
@@ -72,7 +72,7 @@ class RunnerTrain(object):
                     batch_index, run_time, run_result[1], run_result[6], run_result[-1]))
             if batch_index % save_model_freq == 0:
                 # 3. 保存的时候添加上正确的全局步长
-                global_step = tf.get_collection(tf.GraphKeys.GLOBAL_STEP)[0]
+                global_step = tf.subtract(tf.get_collection(tf.GraphKeys.GLOBAL_STEP)[0], 1)
                 self.saver.save(self.sess, os.path.join(self.ckpt_path, self.ckpt_name), global_step=global_step)
                 self.print_info("{} saved model in ={}".format(batch_index, self.ckpt_path))
             pass
@@ -228,4 +228,4 @@ class RunnerTrain(object):
 
 if __name__ == '__main__':
     runner = RunnerTrain()
-    runner.train_demo(num_batches=100000, print_1_freq=100, save_model_freq=2000)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
