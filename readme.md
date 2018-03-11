@@ -145,6 +145,31 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 ![loss ok](paper/loss_ok.png)
 
 
+
+### Fine-tuning
+
+#### 从SSD训练好的模型开始
+
+1. 完成`Caffe models to Tensorflow checkpoints`。
+
+2. 将训练好的SSD模型放在`RunnerTrain`中`ckpt_path`和`ckpt_name`指定的目录。
+
+3. 适当的调整参数，运行`RunnerSSDTrain`即可。
+
+
+#### 从ImageNet预训练开始：Fine-tuning a network trained on ImageNet
+
+1. 下载ImageNet预训练模型：[models/slim#pre-trained-models](https://github.com/tensorflow/models/tree/master/research/slim#pre-trained-models) / 
+[VGG16](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)
+
+2. 只加载SSD中属于原始架构可训练变量的权值/剩下的可训练变量随机初始化。
+
+3. 可以同时训练上述两种权值。
+
+4. 也可以先固定加载的权值，训练随机初始化的变量，当网络收敛到一个较好的结果时再微调整个网络。
+
+
+
 ### Training objective
 
 * 整体的目标函数(the overall objective loss)是定位损失(the localization loss)和置信损失(the confidence loss)的加权和(weighted sum)

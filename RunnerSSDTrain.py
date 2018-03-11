@@ -9,7 +9,7 @@ from preprocessing import ssd_vgg_preprocessing
 
 class RunnerTrain(object):
 
-    def __init__(self, dataset_split_name="train", dataset_dir="./data/train", num_class=21, batch_size=32,
+    def __init__(self, dataset_split_name="train", dataset_dir="./data/train", num_class=21, batch_size=16,
                  img_shape=(300, 300), net_model=ssd_vgg_300, data_format='NHWC', dataset_name=pascalvoc_2007,
                  ckpt_path='./models/ssd_vgg_300', ckpt_name="ssd_300_vgg.ckpt",
                  learning_rate=0.01, end_learning_rate=0.0001,
@@ -209,9 +209,6 @@ class RunnerTrain(object):
                 var_list.extend(global_step)
             tf.train.Saver(var_list=var_list).restore(self.sess, ckpt.model_checkpoint_path)
 
-            result = self.sess.run(global_step)
-            print(result)
-
             self.print_info("Restored model parameters from {}".format(ckpt.model_checkpoint_path))
         else:
             self.print_info('No checkpoint file found.')
@@ -227,5 +224,6 @@ class RunnerTrain(object):
 
 
 if __name__ == '__main__':
-    runner = RunnerTrain()
+    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", batch_size=8,
+                         learning_rate=0.0001, end_learning_rate=0.00001)
     runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
