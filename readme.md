@@ -147,7 +147,25 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 
 ### Loss
 
+* 整体的目标函数(the overall objective loss)是定位损失(the localization loss)和置信损失(the confidence loss)的加权和(weighted sum)
 
+![training objective](paper/SSD_train_objective.png)
+
+![Smooth L1](paper/SSD_train_objective_smooth.png)
+
+其中：
+   1. `c`是所有匹配的框的预测得分。`c_i_p`是第i个匹配的默认框是第p类的得分。
+   2. `N`是匹配的默认框的个数(the number of matched default boxes),如果N为0则设置loss为0。权重项α设为1。
+   3. `x`是标记，对于一张图片，其值是确定的。`x_i_j_p`标记是否是`匹配的第i个默认框是第j个真实框且类别为p`(即：在框内的对象是哪一类)。
+   `x_i_j_k`标记是否是`匹配的第i个默认框是第j个真实框`(即：这个框的边界是多少。此时计算的是边界，不管类别，所以k代表所有类别)。
+   需要说明的是：`在编码过程中，匹配的默认框修改成了真实框`。
+   4. `L_conf`是softmax loss over multiple classes confidences，即计算`匹配的正默认框为正样本的可能性`和`匹配的负默认框为负样本的可能性`（对得分进行了归一）。
+   5. `L_loc`是对默认框中心和宽高的回归(regress to offsets for the center(cx,cy),width(w) and height(h) of the default bounding box)。
+   6. `L_loc`是预测框(the predicted box (l),编码中修改了默认框)和真实框(the ground truth box (g))的`Smooth L1`。
+   7. 定位损失目标是最小化`L_loc`,所以根据`Smooth L1`公式，`smooth_l1`的两个参数越接近越好。
+   因此，对于`cx`和`cy`采用`偏离中心占默认框的比例`作为度量方式，对于`width`和`height`采用`预测和真实之间比例的对数`作为度量方式。
+   8. 预测框(the predicted box,l)、默认框(the default box,d)、真实框(the ground truth,g)，预测中心(center(cx,cy))、预测宽度(w)、预测高度(h)。
+   9. 以上理解可能有误。
 
 
 ### Reference
