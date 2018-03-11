@@ -145,7 +145,7 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 ![loss ok](paper/loss_ok.png)
 
 
-### Loss
+### Training objective
 
 * 整体的目标函数(the overall objective loss)是定位损失(the localization loss)和置信损失(the confidence loss)的加权和(weighted sum)
 
