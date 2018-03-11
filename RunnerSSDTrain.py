@@ -224,6 +224,6 @@ class RunnerTrain(object):
 
 
 if __name__ == '__main__':
-    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", batch_size=8,
-                         learning_rate=0.0001, end_learning_rate=0.00001)
+    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine_large", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
     runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)

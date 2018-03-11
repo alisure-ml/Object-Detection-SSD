@@ -170,7 +170,8 @@ def demo_300(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt'):
     runner = RunnerOneOrRealTime(ckpt_filename=ckpt_filename,
                                  net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300))
     # one image
-    runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result2.png")
+    # runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result2.png")
+    runner.run(image_name="demo/horses.jpg", result_name="demo/horses_result2.png")
     # camera
     # runner.run(prop_id=0, size=(960, 840))
     # video
@@ -190,5 +191,5 @@ def demo_512():
     pass
 
 if __name__ == '__main__':
-    demo_300(ckpt_filename="models/ssd_vgg_300/ssd_300_vgg.ckpt-600")
+    demo_300(ckpt_filename="models/ssd_vgg_300_fine_large/ssd_300_vgg.ckpt-2000")
     pass

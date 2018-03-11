@@ -156,6 +156,24 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 
 3. 适当的调整参数，运行`RunnerSSDTrain`即可。
 
+当调整学习率参数为很小（例如，learning_rate=0.0001, end_learning_rate=0.00001）时，结果很好。
+```python
+from RunnerSSDTrain import RunnerTrain
+if __name__ == '__main__':
+    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+```
+
+当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果很好。
+```python
+from RunnerSSDTrain import RunnerTrain
+if __name__ == '__main__':
+    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+```
+
 
 #### 从ImageNet预训练开始：Fine-tuning a network trained on ImageNet
 
