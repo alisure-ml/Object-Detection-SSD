@@ -7,6 +7,7 @@
 
 * [SSD: Single Shot MultiBox Detector](/paper/SSD%20-%20Single%20Shot%20MultiBox%20Detector.pdf)
 
+![SSD](paper/SSD.png)
 
 ### Checkpoint
 
