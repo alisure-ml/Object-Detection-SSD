@@ -144,6 +144,10 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 ![loss ok](paper/loss_ok.png)
 
 
+### Loss
+
+
+
 
 ### Reference
 
