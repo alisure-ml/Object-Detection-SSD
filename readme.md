@@ -193,6 +193,12 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
    9. 以上理解可能有误。
 
 
+### 筛选框
+
+
+### 标签编码
+
+
 ### Reference
 
 * [balancap/SSD-Tensorflow](https://github.com/balancap/SSD-Tensorflow)
