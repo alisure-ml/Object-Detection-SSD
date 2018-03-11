@@ -52,7 +52,7 @@ class RunnerEval(object):
         self.ssd_anchors = self.ssd_net.anchors(self.image_shape)
 
         # 数据：预处理，encode，批次
-        # g_scores可能是当前默认框与真实框的交并比（难道是每个默认框的得分？细节需要再看）
+        # g_scores是（当前默认框与真实框的交）占（真实框）的比例
         image, g_labels, g_bboxes, g_diff, g_bbox_img, g_classes, g_localisations, g_scores = self._get_data_tensor(
             self.dataset, batch_size=self.batch_size, data_format=self.data_format, eval_resize=self.eval_resize)
 

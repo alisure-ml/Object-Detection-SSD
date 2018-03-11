@@ -11,9 +11,11 @@ from preprocessing import ssd_vgg_preprocessing
 """
 没有框编码和框解码、没有优化
 """
+
+
 class RunnerOneOrRealTime(object):
 
-    def __init__(self, ckpt_filename, net_model=ssd_vgg_300, num_class=23, net_shape=(300, 300), data_format="NHWC"):
+    def __init__(self, ckpt_filename, net_model, num_class=23, net_shape=(300, 300), data_format="NHWC"):
         self.ckpt_filename = ckpt_filename
         self.data_format = data_format
         self.net_shape = net_shape
@@ -164,8 +166,8 @@ class RunnerOneOrRealTime(object):
     pass
 
 
-def demo_300():
-    runner = RunnerOneOrRealTime(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt',
+def demo_300(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt'):
+    runner = RunnerOneOrRealTime(ckpt_filename=ckpt_filename,
                                  net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300))
     # one image
     runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result2.png")
@@ -188,5 +190,5 @@ def demo_512():
     pass
 
 if __name__ == '__main__':
-    demo_300()
+    demo_300(ckpt_filename="models/ssd_vgg_300/ssd_300_vgg.ckpt-600")
     pass

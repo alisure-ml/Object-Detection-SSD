@@ -57,7 +57,7 @@ if __name__ == '__main__':
 | ![car](demo/dog.jpg) | ![car](demo/dog_result.png) |
 
 
-### Train Data
+### Data
 
 0. download voc data
 ```bash
@@ -119,6 +119,29 @@ if __name__ == '__main__':
     runner = RunnerEval()
     runner.eval_demo()
 ```
+
+
+### Train
+
+* 
+
+
+> 一直出現损失为nan的情况，经过一天....的找原因发现是优化求解出现了问题
+
+```python
+# 用RMSP优化会出现问题
+optimizer = tf.train.RMSPropOptimizer(learning_rate, decay=0.9, momentum=0.9, epsilon=1.0)
+```
+
+![loss nan](paper/loss_nan.png)
+
+
+```python
+# 改用Adam
+optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilon=1.0)
+```
+
+![loss ok](paper/loss_ok.png)
 
 
 
