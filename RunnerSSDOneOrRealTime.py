@@ -15,11 +15,15 @@ from preprocessing import ssd_vgg_preprocessing
 
 class RunnerOneOrRealTime(object):
 
-    def __init__(self, ckpt_filename, net_model, num_class=23, net_shape=(300, 300), data_format="NHWC"):
+    def __init__(self, ckpt_filename, net_model, num_class=23, net_shape=(300, 300), data_format="NHWC",
+                 select_threshold=0.5, nms_threshold=0.45):
         self.ckpt_filename = ckpt_filename
         self.data_format = data_format
         self.net_shape = net_shape
         self.num_class = num_class
+
+        self.select_threshold = select_threshold
+        self.nms_threshold = nms_threshold
 
         self.ssd_net = net_model.SSDNet(net_model.SSDNet.default_params._replace(num_classes=num_class))
         self.img_input = tf.placeholder(tf.uint8, shape=(None, None, 3))
@@ -46,14 +50,14 @@ class RunnerOneOrRealTime(object):
 
         return image_4d, predictions, localisations, bbox_img, ssd_anchors
 
-    def run_net(self, img, select_threshold=0.5, nms_threshold=0.45, bboxes_sort_top_k=400):
+    def run_net(self, img, bboxes_sort_top_k=400):
         # Run SSD network.
         r_img, r_predictions, r_localisations, r_bbox_img = self.sess.run(
             [self.image_4d, self.predictions, self.localisations, self.bbox_img], feed_dict={self.img_input: img})
 
         # 将符合条件（非背景得分大于select_threshold）框的类别、得分和边界框筛选出
         r_classes, r_scores, r_bboxes = np_methods.ssd_bboxes_select(
-            r_predictions, r_localisations, self.ssd_anchors, select_threshold=select_threshold,
+            r_predictions, r_localisations, self.ssd_anchors, select_threshold=self.select_threshold,
             img_shape=self.net_shape, num_classes=self.num_class, decode=True)
 
         # 使bboxes的范围在bbox_ref内
@@ -61,7 +65,7 @@ class RunnerOneOrRealTime(object):
         # 根据得分排序，选择top_k
         r_classes, r_scores, r_bboxes = np_methods.bboxes_sort(r_classes, r_scores, r_bboxes, top_k=bboxes_sort_top_k)
         # 非极大值抑制(non maximum suppression)
-        r_classes, r_scores, r_bboxes = np_methods.bboxes_nms(r_classes, r_scores, r_bboxes, nms_threshold)
+        r_classes, r_scores, r_bboxes = np_methods.bboxes_nms(r_classes, r_scores, r_bboxes, self.nms_threshold)
         # Resize bboxes to original image shape.
         r_bboxes = np_methods.bboxes_resize(r_bbox_img, r_bboxes)
 
@@ -166,12 +170,12 @@ class RunnerOneOrRealTime(object):
     pass
 
 
-def demo_300(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt'):
-    runner = RunnerOneOrRealTime(ckpt_filename=ckpt_filename,
-                                 net_model=ssd_vgg_300, num_class=21, net_shape=(300, 300))
+def demo_300(ckpt_filename='checkpoints/VGG_VOC0712_SSD_300x300.ckpt',
+             image_name="dog", select_threshold=0.5, nms_threshold=0.45):
+    runner = RunnerOneOrRealTime(ckpt_filename=ckpt_filename, net_model=ssd_vgg_300, num_class=21,
+                                 net_shape=(300, 300), select_threshold=select_threshold, nms_threshold=nms_threshold)
     # one image
-    # runner.run(image_name="demo/dog.jpg", result_name="demo/dog_result2.png")
-    runner.run(image_name="demo/horses.jpg", result_name="demo/horses_result2.png")
+    runner.run(image_name="demo/{}.jpg".format(image_name), result_name="demo/{}_result2.png".format(image_name))
     # camera
     # runner.run(prop_id=0, size=(960, 840))
     # video
@@ -191,5 +195,12 @@ def demo_512():
     pass
 
 if __name__ == '__main__':
-    demo_300(ckpt_filename="models/ssd_vgg_300_fine_large/ssd_300_vgg.ckpt-2000")
+    demo_300("models/ssd_vgg_300_fine_large/ssd_300_vgg.ckpt-72000", select_threshold=0.5, nms_threshold=0.45,
+             image_name="car"
+             # image_name="dog"
+             # image_name="eagle"
+             # image_name="horses"
+             # image_name="person"
+             # image_name="street"
+             )
     pass

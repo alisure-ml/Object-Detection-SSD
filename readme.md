@@ -165,7 +165,7 @@ if __name__ == '__main__':
     runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
 ```
 
-当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果很好。
+当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果不好。
 ```python
 from RunnerSSDTrain import RunnerTrain
 if __name__ == '__main__':
@@ -181,11 +181,17 @@ if __name__ == '__main__':
 [VGG16](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)
 
 2. 只加载SSD中属于原始架构可训练变量的权值/剩下的可训练变量随机初始化。
+```python
+
+```
 
 3. 可以同时训练上述两种权值。
 
 4. 也可以先固定加载的权值，训练随机初始化的变量，当网络收敛到一个较好的结果时再微调整个网络。
-
+   
+   * 先固定加载的权值，训练随机初始化的变量。
+   
+   * 微调整个网络就相当于`从SSD训练好的模型开始`，且其学习率较小。
 
 
 ### Training objective

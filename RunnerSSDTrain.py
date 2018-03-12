@@ -197,6 +197,7 @@ class RunnerTrain(object):
                 i += s
         return r
 
+    # 从训练好的SSD模型恢复
     def restore_if_y(self, log_dir):
         # 加载模型
         ckpt = tf.train.get_checkpoint_state(log_dir)
@@ -213,6 +214,11 @@ class RunnerTrain(object):
         else:
             self.print_info('No checkpoint file found.')
             pass
+        pass
+
+    # 从ImageNet模型恢复
+    def restore_imagenet_if_y(self, log_dir):
+
         pass
 
     @staticmethod
