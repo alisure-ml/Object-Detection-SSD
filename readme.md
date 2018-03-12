@@ -142,9 +142,9 @@ from RunnerSSDTrain import RunnerTrain
 # run_type=2：从SSD模型开始训练
 def run_type_1_or_2():
     # 1和2的区别只是在ckpt_path下有没有训练好的模型
-    runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+    runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300_1", ckpt_name="ssd_300_vgg.ckpt",
                          batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
-    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=100)
     pass
     
 if __name__ == '__main__':
@@ -166,7 +166,7 @@ from RunnerSSDTrain import RunnerTrain
 def run_type_1_or_2():
     # 1和2的区别只是在ckpt_path下有没有训练好的模型
     runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
-                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+                         batch_size=8, learning_rate=0.001, end_learning_rate=0.00001)
     runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
     pass
     
@@ -202,33 +202,36 @@ if __name__ == '__main__':
 
 2. 只加载SSD中属于原始架构可训练变量的权值/剩下的可训练变量随机初始化。
 ```python
-    def restore_image_net_if_y(self, image_net_ckpt_model_file, exclude_scopes, ckpt_model_scope="vgg_16"):
-        variables_to_restore = []
-        for var in tf.model_variables():  # 遍历所有的模型变量
-            excluded = False
-            for exclusion in exclude_scopes:  # 判断该变量是否被排除
-                if var.op.name.startswith(exclusion):
-                    excluded = True
-                    break
-                pass
-            if not excluded:  # 如果不在exclude_scopes中,则需要restore
-                variables_to_restore.append(var)
+# 从ImageNet模型恢复:exclude_scopes指定要恢复的变量
+def restore_image_net_if_y(self, image_net_ckpt_model_file, exclude_scopes, image_net_ckpt_model_scope="vgg_16"):
+    variables_to_restore = []
+    for var in tf.model_variables():  # 遍历所有的模型变量
+        excluded = False
+        for exclusion in exclude_scopes:  # 判断该变量是否被排除
+            if var.op.name.startswith(exclusion):
+                excluded = True
+                break
             pass
-
-        if ckpt_model_scope:
-            # Change model scope if necessary.
-            variables_to_restore = {var.op.name.replace(self.net_model, ckpt_model_scope): var
-                                    for var in variables_to_restore}
-            pass
-
-        if image_net_ckpt_model_file is None:
-            self.print_info('No ImageNet ckpt file found.')
-        else:
-            restore_fn = slim.assign_from_checkpoint_fn(image_net_ckpt_model_file,
-                                                        variables_to_restore, ignore_missing_vars=True)
-            restore_fn(self.sess)
-            self.print_info("Restored model parameters from {}".format(image_net_ckpt_model_file))
+        if not excluded:  # 如果不在exclude_scopes中,则需要restore
+            variables_to_restore.append(var)
         pass
+
+    if image_net_ckpt_model_scope:
+        # Change model scope if necessary.
+        variables_to_restore = {var.op.name.replace(self.net_model_scope, image_net_ckpt_model_scope): var
+                                for var in variables_to_restore}
+        pass
+
+    if image_net_ckpt_model_file is None:
+        self.print_info('No ImageNet ckpt file found.')
+    else:
+        restore_fn = slim.assign_from_checkpoint_fn(image_net_ckpt_model_file,
+                                                    variables_to_restore, ignore_missing_vars=True)
+        restore_fn(self.sess)
+
+        self.print_info("Just Restored the variable that included not in Exclude_Scopes.")
+        self.print_info("Restored model parameters from {}".format(image_net_ckpt_model_file))
+    pass
 ```
 
 3. 同时训练上述两种权值，run `RunnerSSDTrain` as below:
@@ -237,7 +240,7 @@ from RunnerSSDTrain import RunnerTrain
 
 # run_type=3：从ImageNet模型开始训练
 def run_type_3():
-    runner = RunnerTrain(run_type=3, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+    runner = RunnerTrain(run_type=3, ckpt_path="./models/ssd_vgg_300_3", ckpt_name="ssd_300_vgg.ckpt",
                          image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
                          batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
     runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
@@ -254,22 +257,39 @@ if __name__ == '__main__':
 
 2. 同`从ImageNet模型开始训练`
 
-3. 先固定加载的权值，训练随机初始化的变量，当网络收敛到一个较好的结果时再微调整个网络。
+3. 先固定加载的权值，训练随机初始化的变量
 ```python
-    @staticmethod
-    def get_variables_to_train(trainable_scopes):
-        if trainable_scopes is None:
-            return tf.trainable_variables()
+def get_variables_to_train(self, trainable_scopes):
+    if trainable_scopes is None:
+        return tf.trainable_variables()
 
-        variables_to_train = []
-        for scope in trainable_scopes:
-            variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
-            variables_to_train.extend(variables)
-            pass
-        return variables_to_train
+    variables_to_train = []
+    for scope in trainable_scopes:
+        variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+        variables_to_train.extend(variables)
+        pass
+    
+    self.print_info("Just train the variable that included in Trainable_Scopes.")
+    return variables_to_train
+```
+
+4.训练网络，当网络收敛到一个较好的结果时再微调整个网络，run `RunnerSSDTrain` as below:
+```python
+from RunnerSSDTrain import RunnerTrain
+
+# run_type=4：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转run_type=2
+def run_type_4():
+    runner = RunnerTrain(run_type=4, ckpt_path="./models/ssd_vgg_300_4", ckpt_name="ssd_300_vgg.ckpt",
+                         image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
+                         batch_size=8, learning_rate=0.001, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+    
+if __name__ == '__main__':
+    run_type_4()
 ```
    
-4. 微调整个网络就相当于`从SSD训练好的模型开始`，且其学习率较小，run `RunnerSSDTrain` as below:
+5. 微调整个网络就相当于`从SSD训练好的模型开始`，且其学习率较小，run `RunnerSSDTrain` as below:
 ```python
 from RunnerSSDTrain import RunnerTrain
 if __name__ == '__main__':
@@ -277,6 +297,7 @@ if __name__ == '__main__':
                          batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
     runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
 ```
+
 
 #### 一直出現损失为nan的情况，经过一天....的找原因发现是优化求解出现了问题
 
