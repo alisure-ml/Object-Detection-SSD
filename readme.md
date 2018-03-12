@@ -177,22 +177,22 @@ if __name__ == '__main__':
 4. 学习率的影响
 
     * 当调整学习率参数为很小（例如，learning_rate=0.0001, end_learning_rate=0.00001）时，结果很好。
-```python
-from RunnerSSDTrain import RunnerTrain
-if __name__ == '__main__':
-    runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
-                         batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
-    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
-```
+    ```python
+    from RunnerSSDTrain import RunnerTrain
+    if __name__ == '__main__':
+        runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                             batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
+        runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+    ```
 
    * 当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果一开始会不好，然后会慢慢收敛。
-```python
-from RunnerSSDTrain import RunnerTrain
-if __name__ == '__main__':
-    runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
-                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
-    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
-```
+    ```python
+    from RunnerSSDTrain import RunnerTrain
+    if __name__ == '__main__':
+        runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                             batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+        runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+    ```
 
 
 #### 从ImageNet模型开始训练
@@ -231,7 +231,7 @@ if __name__ == '__main__':
         pass
 ```
 
-3. 可以同时训练上述两种权值，run `RunnerSSDTrain` as below:
+3. 同时训练上述两种权值，run `RunnerSSDTrain` as below:
 ```python
 from RunnerSSDTrain import RunnerTrain
 
