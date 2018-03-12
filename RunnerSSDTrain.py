@@ -6,14 +6,31 @@ from datasets import pascalvoc_2007
 import tensorflow.contrib.slim as slim
 from preprocessing import ssd_vgg_preprocessing
 
+Trainable_Scopes = list(["ssd_300_vgg/conv6", "ssd_300_vgg/conv7", "ssd_300_vgg/block8",
+                         "ssd_300_vgg/block9", "ssd_300_vgg/block10", "ssd_300_vgg/block11",
+                         "ssd_300_vgg/block4_box", "ssd_300_vgg/block7_box", "ssd_300_vgg/block8_box",
+                         "ssd_300_vgg/block9_box", "ssd_300_vgg/block10_box", "ssd_300_vgg/block11_box"])
+
+Exclude_Scopes = list(["ssd_300_vgg/conv6", "ssd_300_vgg/conv7", "ssd_300_vgg/block8",
+                       "ssd_300_vgg/block9", "ssd_300_vgg/block10", "ssd_300_vgg/block11",
+                       "ssd_300_vgg/block4_box", "ssd_300_vgg/block7_box", "ssd_300_vgg/block8_box",
+                       "ssd_300_vgg/block9_box", "ssd_300_vgg/block10_box", "ssd_300_vgg/block11_box"])
+
 
 class RunnerTrain(object):
 
-    def __init__(self, dataset_split_name="train", dataset_dir="./data/train", num_class=21, batch_size=16,
+    def __init__(self, run_type=1, dataset_split_name="train", dataset_dir="./data/train",
+                 num_class=21, batch_size=16, learning_rate=0.01, end_learning_rate=0.0001,
                  img_shape=(300, 300), net_model=ssd_vgg_300, data_format='NHWC', dataset_name=pascalvoc_2007,
                  ckpt_path='./models/ssd_vgg_300', ckpt_name="ssd_300_vgg.ckpt",
-                 learning_rate=0.01, end_learning_rate=0.0001,
+                 image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
                  weight_decay=0.00004, negative_ratio=3., loss_alpha=1., label_smoothing=0.0):
+        # 运行方式
+        # run_type=1：从0开始训练
+        # run_type=2：从SSD模型开始训练
+        # run_type=3：从ImageNet模型开始训练
+        # run_type=4：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转run_type=2
+        self.run_type = run_type
 
         # 数据相关参数
         self.num_class = num_class
@@ -39,17 +56,20 @@ class RunnerTrain(object):
         self.opt_epsilon = 1.0
 
         # 模型相关参数
+        self.net_model = net_model
         self.img_shape = img_shape
-        self.ssd_params = net_model.SSDNet.default_params._replace(num_classes=self.num_class)
+        self.ssd_params = self.net_model.SSDNet.default_params._replace(num_classes=self.num_class)
         self.ssd_params = self.ssd_params._replace(img_shape=self.img_shape)
 
+        # 预训练模型
         if not os.path.exists(ckpt_path):
             os.makedirs(ckpt_path)
         self.ckpt_path = ckpt_path
         self.ckpt_name = ckpt_name
+        self.image_net_ckpt_model_file = image_net_ckpt_model_file
 
         # 网络和default boxes
-        self.ssd_net = net_model.SSDNet(self.ssd_params)
+        self.ssd_net = self.net_model.SSDNet(self.ssd_params)
         self.ssd_anchors = self.ssd_net.anchors(self.img_shape)
 
         # 数据：预处理，encode，批次
@@ -88,7 +108,19 @@ class RunnerTrain(object):
     def train(self, run_list, func_print, func_final_print, num_batches):
         self.sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
         # 恢复模型
-        self.restore_if_y(log_dir=self.ckpt_path)
+
+        # run_type=1：从0开始训练
+        # run_type=2：从SSD模型开始训练
+        # run_type=3：从ImageNet模型开始训练
+        # run_type=4：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转run_type=2
+        if (self.run_type == 1 or self.run_type == 2) and self.ckpt_path:
+            self.restore_if_y(log_dir=self.ckpt_path)
+        elif (self.run_type == 3 or self.run_type == 4) and self.image_net_ckpt_model_file:
+            self.restore_image_net_if_y(image_net_ckpt_model_file=self.image_net_ckpt_model_file,
+                                        exclude_scopes=Exclude_Scopes, ckpt_model_scope="vgg_16")
+        else:
+            self.print_info("run type is {}, but it is error.....")
+            pass
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
@@ -161,11 +193,26 @@ class RunnerTrain(object):
         optimizer = tf.train.AdamOptimizer(learning_rate, beta1=self.adam_beta1,
                                            beta2=self.adam_beta2, epsilon=self.opt_epsilon)
 
-        train_op = optimizer.minimize(r_total_loss, global_step, var_list=tf.trainable_variables())
+        # run_type=4：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转run_type=2
+        var_list = self.get_variables_to_train(Trainable_Scopes) if self.run_type == 4 else tf.trainable_variables()
+        train_op = optimizer.minimize(r_total_loss, global_step, var_list=var_list)
 
         return [train_op, r_total_loss, r_predictions, r_localisations, r_logits, r_end_points,
                 learning_rate, image, g_classes, g_localisations, g_scores, global_step]
         pass
+
+    # 得到要训练的变量，如果trainable_scopes=None,返回全部tf.GraphKeys.TRAINABLE_VARIABLES中的可训练变量
+    @staticmethod
+    def get_variables_to_train(trainable_scopes):
+        if trainable_scopes is None:
+            return tf.trainable_variables()
+
+        variables_to_train = []
+        for scope in trainable_scopes:
+            variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+            variables_to_train.extend(variables)
+            pass
+        return variables_to_train
 
     # shape=None,则将l拉成一维list，否则将一维list按照shape转换。
     @staticmethod
@@ -197,7 +244,7 @@ class RunnerTrain(object):
                 i += s
         return r
 
-    # 从训练好的SSD模型恢复
+    # log_dir下有模型，则从训练好的SSD模型恢复，否则从0开始训练
     def restore_if_y(self, log_dir):
         # 加载模型
         ckpt = tf.train.get_checkpoint_state(log_dir)
@@ -216,9 +263,33 @@ class RunnerTrain(object):
             pass
         pass
 
-    # 从ImageNet模型恢复
-    def restore_imagenet_if_y(self, log_dir):
+    # 从ImageNet模型恢复:exclude_scopes指定要恢复的变量
+    def restore_image_net_if_y(self, image_net_ckpt_model_file, exclude_scopes, ckpt_model_scope="vgg_16"):
+        variables_to_restore = []
+        for var in tf.model_variables():  # 遍历所有的模型变量
+            excluded = False
+            for exclusion in exclude_scopes:  # 判断该变量是否被排除
+                if var.op.name.startswith(exclusion):
+                    excluded = True
+                    break
+                pass
+            if not excluded:  # 如果不在exclude_scopes中,则需要restore
+                variables_to_restore.append(var)
+            pass
 
+        if ckpt_model_scope:
+            # Change model scope if necessary.
+            variables_to_restore = {var.op.name.replace(self.net_model, ckpt_model_scope): var
+                                    for var in variables_to_restore}
+            pass
+
+        if image_net_ckpt_model_file is None:
+            self.print_info('No ImageNet ckpt file found.')
+        else:
+            restore_fn = slim.assign_from_checkpoint_fn(image_net_ckpt_model_file,
+                                                        variables_to_restore, ignore_missing_vars=True)
+            restore_fn(self.sess)
+            self.print_info("Restored model parameters from {}".format(image_net_ckpt_model_file))
         pass
 
     @staticmethod
@@ -229,7 +300,33 @@ class RunnerTrain(object):
     pass
 
 
-if __name__ == '__main__':
-    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine_large", ckpt_name="ssd_300_vgg.ckpt",
+# run_type=1：从0开始训练
+# run_type=2：从SSD模型开始训练
+def run_type_1_or_2():
+    # 1和2的区别只是在ckpt_path下有没有训练好的模型
+    runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
                          batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
     runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+
+
+# run_type=3：从ImageNet模型开始训练
+def run_type_3():
+    runner = RunnerTrain(run_type=3, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+
+
+# run_type=4：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转run_type=2
+def run_type_4():
+    runner = RunnerTrain(run_type=4, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+
+
+if __name__ == '__main__':
+    run_type_1_or_2()

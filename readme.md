@@ -122,12 +122,163 @@ if __name__ == '__main__':
 ```
 
 
-### Train
+### Train and Fine-tuning
 
-* Just set you argument in class `RunnerTrain` and run `RunnerSSDTrain.py`.
+**有四种训练方式**
+
+1. `run_type=1`：从头开始训练
+2. `run_type=2`：从SSD模型开始训练
+3. `run_type=3`：从ImageNet模型开始训练
+4. `run_type=4`：从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转`run_type=2`。
 
 
-> 一直出現损失为nan的情况，经过一天....的找原因发现是优化求解出现了问题
+#### 1. 从头开始训练
+
+* Just run `RunnerSSDTrain.py` as below:
+```python
+from RunnerSSDTrain import RunnerTrain
+
+# run_type=1：从0开始训练
+# run_type=2：从SSD模型开始训练
+def run_type_1_or_2():
+    # 1和2的区别只是在ckpt_path下有没有训练好的模型
+    runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+    
+if __name__ == '__main__':
+    run_type_1_or_2()
+```
+
+#### 2. 从SSD模型开始训练
+
+1. 完成`Caffe models to Tensorflow checkpoints`。
+
+2. 将训练好的SSD模型放在`RunnerTrain`中`ckpt_path`和`ckpt_name`指定的目录。
+
+3. 适当的调整参数，run `RunnerSSDTrain` as below:
+```python
+from RunnerSSDTrain import RunnerTrain
+
+# run_type=1：从0开始训练
+# run_type=2：从SSD模型开始训练
+def run_type_1_or_2():
+    # 1和2的区别只是在ckpt_path下有没有训练好的模型
+    runner = RunnerTrain(run_type=1, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+    
+if __name__ == '__main__':
+    run_type_1_or_2()
+```
+
+4. 学习率的影响
+
+    * 当调整学习率参数为很小（例如，learning_rate=0.0001, end_learning_rate=0.00001）时，结果很好。
+```python
+from RunnerSSDTrain import RunnerTrain
+if __name__ == '__main__':
+    runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+```
+
+   * 当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果一开始会不好，然后会慢慢收敛。
+```python
+from RunnerSSDTrain import RunnerTrain
+if __name__ == '__main__':
+    runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+```
+
+
+#### 从ImageNet模型开始训练
+
+1. 下载ImageNet预训练模型：[models/slim#pre-trained-models](https://github.com/tensorflow/models/tree/master/research/slim#pre-trained-models) / 
+[VGG16](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)
+
+2. 只加载SSD中属于原始架构可训练变量的权值/剩下的可训练变量随机初始化。
+```python
+    def restore_image_net_if_y(self, image_net_ckpt_model_file, exclude_scopes, ckpt_model_scope="vgg_16"):
+        variables_to_restore = []
+        for var in tf.model_variables():  # 遍历所有的模型变量
+            excluded = False
+            for exclusion in exclude_scopes:  # 判断该变量是否被排除
+                if var.op.name.startswith(exclusion):
+                    excluded = True
+                    break
+                pass
+            if not excluded:  # 如果不在exclude_scopes中,则需要restore
+                variables_to_restore.append(var)
+            pass
+
+        if ckpt_model_scope:
+            # Change model scope if necessary.
+            variables_to_restore = {var.op.name.replace(self.net_model, ckpt_model_scope): var
+                                    for var in variables_to_restore}
+            pass
+
+        if image_net_ckpt_model_file is None:
+            self.print_info('No ImageNet ckpt file found.')
+        else:
+            restore_fn = slim.assign_from_checkpoint_fn(image_net_ckpt_model_file,
+                                                        variables_to_restore, ignore_missing_vars=True)
+            restore_fn(self.sess)
+            self.print_info("Restored model parameters from {}".format(image_net_ckpt_model_file))
+        pass
+```
+
+3. 可以同时训练上述两种权值，run `RunnerSSDTrain` as below:
+```python
+from RunnerSSDTrain import RunnerTrain
+
+# run_type=3：从ImageNet模型开始训练
+def run_type_3():
+    runner = RunnerTrain(run_type=3, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         image_net_ckpt_model_file="./models/vgg/vgg_16.ckpt",
+                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=100000, print_1_freq=10, save_model_freq=1000)
+    pass
+    
+if __name__ == '__main__':
+    run_type_3()
+```
+
+
+#### 从ImageNet模型开始训练，且固定ImageNet的参数来训练指定的scope。达到要求后，可以转`run_type=2`。
+
+1. 同`从ImageNet模型开始训练`
+
+2. 同`从ImageNet模型开始训练`
+
+3. 先固定加载的权值，训练随机初始化的变量，当网络收敛到一个较好的结果时再微调整个网络。
+```python
+    @staticmethod
+    def get_variables_to_train(trainable_scopes):
+        if trainable_scopes is None:
+            return tf.trainable_variables()
+
+        variables_to_train = []
+        for scope in trainable_scopes:
+            variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+            variables_to_train.extend(variables)
+            pass
+        return variables_to_train
+```
+   
+4. 微调整个网络就相当于`从SSD训练好的模型开始`，且其学习率较小，run `RunnerSSDTrain` as below:
+```python
+from RunnerSSDTrain import RunnerTrain
+if __name__ == '__main__':
+    runner = RunnerTrain(run_type=2, ckpt_path="./models/ssd_vgg_300", ckpt_name="ssd_300_vgg.ckpt",
+                         batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
+    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
+```
+
+#### 一直出現损失为nan的情况，经过一天....的找原因发现是优化求解出现了问题
 
 ```python
 # 用RMSP优化会出现问题
@@ -143,55 +294,6 @@ optimizer = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilo
 ```
 
 ![loss ok](paper/loss_ok.png)
-
-
-
-### Fine-tuning
-
-#### 从SSD训练好的模型开始
-
-1. 完成`Caffe models to Tensorflow checkpoints`。
-
-2. 将训练好的SSD模型放在`RunnerTrain`中`ckpt_path`和`ckpt_name`指定的目录。
-
-3. 适当的调整参数，运行`RunnerSSDTrain`即可。
-
-当调整学习率参数为很小（例如，learning_rate=0.0001, end_learning_rate=0.00001）时，结果很好。
-```python
-from RunnerSSDTrain import RunnerTrain
-if __name__ == '__main__':
-    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", ckpt_name="ssd_300_vgg.ckpt",
-                         batch_size=8, learning_rate=0.0001, end_learning_rate=0.00001)
-    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
-```
-
-当调整学习率参数为很大（例如，learning_rate=0.01, end_learning_rate=0.00001）时，结果不好。
-```python
-from RunnerSSDTrain import RunnerTrain
-if __name__ == '__main__':
-    runner = RunnerTrain(ckpt_path="./models/ssd_vgg_300_fine", ckpt_name="ssd_300_vgg.ckpt",
-                         batch_size=8, learning_rate=0.01, end_learning_rate=0.00001)
-    runner.train_demo(num_batches=10000, print_1_freq=10, save_model_freq=1000)
-```
-
-
-#### 从ImageNet预训练开始：Fine-tuning a network trained on ImageNet
-
-1. 下载ImageNet预训练模型：[models/slim#pre-trained-models](https://github.com/tensorflow/models/tree/master/research/slim#pre-trained-models) / 
-[VGG16](http://download.tensorflow.org/models/vgg_16_2016_08_28.tar.gz)
-
-2. 只加载SSD中属于原始架构可训练变量的权值/剩下的可训练变量随机初始化。
-```python
-
-```
-
-3. 可以同时训练上述两种权值。
-
-4. 也可以先固定加载的权值，训练随机初始化的变量，当网络收敛到一个较好的结果时再微调整个网络。
-   
-   * 先固定加载的权值，训练随机初始化的变量。
-   
-   * 微调整个网络就相当于`从SSD训练好的模型开始`，且其学习率较小。
 
 
 ### Training objective
